@@ -3,6 +3,15 @@ tarkit
 
 untar and tar files on iOS and OS X. Also supports gzip tars. 
 
+## Example
+
+```objc
+NSArray *paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
+NSString* dataPath = [[paths objectAtIndex:0] stringByAppendingPathComponent:@"test.tar.gz"];
+NSString* toPath = [[paths objectAtIndex:0] stringByAppendingPathComponent:@"testDir"];
+[DCTar decompressFileAtPath:dataPath toPath:toPath error:nil];
+```
+
 ## Discussion
 It is important to know that all the file system based tar commands used chunked/buffer methods to save memory. Due to the fact that tars are normally used to compress lots of content, It is strongly recommend to use those method versus the in memory data options.
 
@@ -10,7 +19,7 @@ It is important to know that all the file system based tar commands used chunked
 
 I got some of the tar code from here:
 
--[Light-Untar-for-iOS](https://github.com/mhausherr/Light-Untar-for-iOS)
+- [Light-Untar-for-iOS](https://github.com/mhausherr/Light-Untar-for-iOS)
 
 ## TODO
 
