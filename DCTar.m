@@ -77,7 +77,7 @@
 +(BOOL)tarFileAtPath:(NSString*)tarFilePath toPath:(NSString*)path error:(NSError**)error
 {
     //tar the file
-     //TODO: make a way to tar a file.
+    //TODO: make a way to tar a file.
     return NO;
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -210,7 +210,7 @@
 {
     char type;
     
-    memcpy(&type, [self dataForObject:object inRange:NSMakeRange(offset + TAR_TYPE_POSITION, 1)
+    memcpy(&type, [self dataForObject:object inRange:NSMakeRange((uInt)offset + TAR_TYPE_POSITION, 1)
                            orLocation:offset + TAR_TYPE_POSITION andLength:1].bytes, 1);
     return type;
 }
@@ -220,7 +220,7 @@
     char nameBytes[TAR_NAME_SIZE + 1]; // TAR_NAME_SIZE+1 for nul char at end
     
     memset(&nameBytes, '\0', TAR_NAME_SIZE + 1); // Fill byte array with nul char
-    memcpy(&nameBytes, [self dataForObject:object inRange:NSMakeRange(offset + TAR_NAME_POSITION, TAR_NAME_SIZE)
+    memcpy(&nameBytes, [self dataForObject:object inRange:NSMakeRange((uInt)offset + TAR_NAME_POSITION, TAR_NAME_SIZE)
                                 orLocation:offset + TAR_NAME_POSITION andLength:TAR_NAME_SIZE].bytes, TAR_NAME_SIZE);
     return [NSString stringWithCString:nameBytes encoding:NSASCIIStringEncoding];
 }
@@ -230,7 +230,7 @@
     char sizeBytes[TAR_SIZE_SIZE + 1]; // TAR_SIZE_SIZE+1 for nul char at end
     
     memset(&sizeBytes, '\0', TAR_SIZE_SIZE + 1); // Fill byte array with nul char
-    memcpy(&sizeBytes, [self dataForObject:object inRange:NSMakeRange(offset + TAR_SIZE_POSITION, TAR_SIZE_SIZE)
+    memcpy(&sizeBytes, [self dataForObject:object inRange:NSMakeRange((uInt)offset + TAR_SIZE_POSITION, TAR_SIZE_SIZE)
                                 orLocation:offset + TAR_SIZE_POSITION andLength:TAR_SIZE_SIZE].bytes, TAR_SIZE_SIZE);
     return strtol(sizeBytes, NULL, 8); // Size is an octal number, convert to decimal
 }
@@ -238,13 +238,13 @@
 +(void)writeFileDataForObject:(id)object atLocation:(unsigned long long)location withLength:(unsigned long long)length atPath:(NSString *)path
 {
     if ([object isKindOfClass:[NSData class]]) {
-        [[NSFileManager defaultManager] createFileAtPath:path contents:[object subdataWithRange:NSMakeRange(location, length)] attributes:nil]; //Write the file on filesystem
+        [[NSFileManager defaultManager] createFileAtPath:path contents:[object subdataWithRange:NSMakeRange((uInt)location, (uInt)length)] attributes:nil]; //Write the file on filesystem
     } else if ([object isKindOfClass:[NSFileHandle class]]){
         if ([[NSData data] writeToFile:path atomically:NO]) {
             NSFileHandle *destinationFile = [NSFileHandle fileHandleForWritingAtPath:path];
             [object seekToFileOffset:location];
             
-            unsigned long long maxSize = TAR_MAX_BLOCK_LOAD_IN_MEMORY * TAR_BLOCK_SIZE;
+            uInt maxSize = TAR_MAX_BLOCK_LOAD_IN_MEMORY * TAR_BLOCK_SIZE;
             
             while (length > maxSize) {
                 @autoreleasepool {
@@ -253,7 +253,7 @@
                     length -= maxSize;
                 }
             }
-            [destinationFile writeData:[object readDataOfLength:length]];
+            [destinationFile writeData:[object readDataOfLength:(uInt)length]];
             [destinationFile closeFile];
         }
     }
@@ -265,7 +265,7 @@
         return [object subdataWithRange:range];
     } else if ([object isKindOfClass:[NSFileHandle class]]) {
         [object seekToFileOffset:location];
-        return [object readDataOfLength:length];
+        return [object readDataOfLength:(uInt)length];
     }
     return nil;
 }
