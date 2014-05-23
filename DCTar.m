@@ -284,7 +284,7 @@
     strm.opaque = Z_NULL;
     strm.total_out = 0;
     strm.next_in=(Bytef*)[data bytes];
-    strm.avail_in = [data length];
+    strm.avail_in = (uInt)[data length];
     
     if(isgzip){
         if (deflateInit2(&strm, Z_DEFAULT_COMPRESSION, Z_DEFLATED, (15+16), 8, Z_DEFAULT_STRATEGY) != Z_OK)
@@ -301,7 +301,7 @@
             [compressed increaseLengthBy:16384];
         
         strm.next_out = [compressed mutableBytes] + strm.total_out;
-        strm.avail_out = [compressed length] - strm.total_out;
+        strm.avail_out = (uInt)([compressed length] - strm.total_out);
         
         deflate(&strm, Z_FINISH);
         
@@ -318,8 +318,8 @@
     if ([data length] == 0)
         return nil;
     
-    unsigned full_length = [data length];
-    unsigned half_length = [data length] / 2;
+    uInt full_length = (uInt)[data length];
+    uInt half_length = (uInt)[data length] / 2;
     
     NSMutableData *decompressed = [NSMutableData dataWithLength: full_length + half_length];
     BOOL done = NO;
@@ -327,7 +327,7 @@
     
     z_stream strm;
     strm.next_in = (Bytef*)[data bytes];
-    strm.avail_in = [data length];
+    strm.avail_in = (uInt)[data length];
     strm.total_out = 0;
     strm.zalloc = Z_NULL;
     strm.zfree = Z_NULL;
@@ -347,7 +347,7 @@
             [decompressed increaseLengthBy:half_length];
         
         strm.next_out = [decompressed mutableBytes] + strm.total_out;
-        strm.avail_out = [decompressed length] - strm.total_out;
+        strm.avail_out = (uInt)([decompressed length] - strm.total_out);
         
         // Inflate another chunk.
         status = inflate (&strm, Z_SYNC_FLUSH);
@@ -388,10 +388,10 @@
     [@"" writeToFile:toPath atomically:NO encoding:NSUTF8StringEncoding error:nil];
     NSFileHandle *writeHandle = [NSFileHandle fileHandleForWritingAtPath:toPath];
     BOOL done = NO;
-    NSInteger chunkSize = 16384;
+    uInt chunkSize = 16384;
     do {
         NSData *chunk = [fileHandle readDataOfLength:chunkSize];
-        strm.avail_in = [chunk length];
+        strm.avail_in = (uInt)[chunk length];
         strm.next_in = (Bytef*)[chunk bytes];
         
         do {
