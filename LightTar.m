@@ -35,6 +35,7 @@
 
 /*
  * Define structure of POSIX 'ustar' tar header.
+ + Provided by libarchive.
  */
 #define	USTAR_name_offset 0
 #define	USTAR_name_size 100
@@ -126,6 +127,9 @@ static const char template_header[] = {
 
 #pragma mark - Private Methods
 @interface LightTar()
++ (NSData *) binaryEncodeDataForPath:(NSString *) path inDirectory:(NSString *)basepath  isDirectory:(BOOL) isDirectory;
++ (void) writeHeader:(char *) buffer forPath:(NSString *) path withBasePath:(NSString *) basePath isDirectory:(BOOL) isDirectory;
++ (void) writeString:(NSString *) string toChar:(char *) charArray withLenght:(int) size;
 @end
 
 #pragma mark - Implementation
@@ -173,15 +177,26 @@ static const char template_header[] = {
     
     NSMutableData *tarData;
     char block[TAR_BLOCK_SIZE];
-    memcpy(&block,&template_header, TAR_BLOCK_SIZE);
     
     if(isDirectory) {
         path = [path stringByAppendingString:@"/"];
     }
-    
     //write header
+    [self writeHeader:block forPath:path withBasePath:basepath isDirectory:isDirectory];
+    tarData = [NSMutableData dataWithBytes:block length:TAR_BLOCK_SIZE];
+    
+    //write data
+    if(!isDirectory) {
+        [tarData appendData:[NSData dataWithContentsOfFile:[basepath stringByAppendingPathComponent:path]]];
+    }
+    return tarData;
+}
+
++ (void) writeHeader:(char *) buffer forPath:(NSString *) path withBasePath:(NSString *) basePath isDirectory:(BOOL) isDirectory {
+    memcpy(buffer,&template_header, TAR_BLOCK_SIZE);
+    
     NSError *error;
-    NSDictionary *attributes = [[NSFileManager defaultManager] attributesOfItemAtPath:[basepath stringByAppendingPathComponent:path] error:&error];
+    NSDictionary *attributes = [[NSFileManager defaultManager] attributesOfItemAtPath:[basePath stringByAppendingPathComponent:path] error:&error];
     int permissions = [[attributes objectForKey:NSFilePosixPermissions] shortValue];
     NSDate * modificationDate = [attributes objectForKey:NSFileModificationDate];
     long ownerId = [[attributes objectForKey:NSFileOwnerAccountID] longValue];
@@ -198,20 +213,20 @@ static const char template_header[] = {
     [self writeString:groupName toChar:gnameChar withLenght:USTAR_gname_size];
     
     
-    format_number(permissions & 07777, block+USTAR_mode_offset, USTAR_mode_size, USTAR_mode_max_size, 0);
+    format_number(permissions & 07777, buffer+USTAR_mode_offset, USTAR_mode_size, USTAR_mode_max_size, 0);
     format_number(ownerId,
-                  block + USTAR_uid_offset, USTAR_uid_size, USTAR_uid_max_size, 0);
+                  buffer + USTAR_uid_offset, USTAR_uid_size, USTAR_uid_max_size, 0);
 	format_number(groupId,
-                  block + USTAR_gid_offset, USTAR_gid_size, USTAR_gid_max_size, 0);
+                  buffer + USTAR_gid_offset, USTAR_gid_size, USTAR_gid_max_size, 0);
     
-	format_number(fileSize, block + USTAR_size_offset, USTAR_size_size, USTAR_size_max_size, 0);
+	format_number(fileSize, buffer + USTAR_size_offset, USTAR_size_size, USTAR_size_max_size, 0);
     
 	format_number([modificationDate timeIntervalSince1970],
-                  block + USTAR_mtime_offset, USTAR_mtime_size, USTAR_mtime_max_size, 0);
+                  buffer + USTAR_mtime_offset, USTAR_mtime_size, USTAR_mtime_max_size, 0);
     
     unsigned long nameLength = strlen(nameChar);
     if (nameLength <= USTAR_name_size)
-		memcpy(block + USTAR_name_offset, nameChar, nameLength);
+		memcpy(buffer + USTAR_name_offset, nameChar, nameLength);
 	else {
 		/* Store in two pieces, splitting at a '/'. */
 		const char *p = strchr(nameChar + nameLength - USTAR_name_size - 1, '/');
@@ -222,41 +237,36 @@ static const char template_header[] = {
 		 */
 		if (p == nameChar)
 			p = strchr(p + 1, '/');
-        memcpy(block + USTAR_prefix_offset, nameChar, p - nameChar);
-		memcpy(block + USTAR_name_offset, p + 1,
+        memcpy(buffer + USTAR_prefix_offset, nameChar, p - nameChar);
+		memcpy(buffer + USTAR_name_offset, p + 1,
                nameChar + nameLength - p - 1);
 	}
     
-    
-    
-    memcpy(&block[USTAR_uname_offset],unameChar,USTAR_uname_size);
-    memcpy(&block[USTAR_gname_offset],gnameChar,USTAR_gname_size);
+    memcpy(buffer+USTAR_uname_offset,unameChar,USTAR_uname_size);
+    memcpy(buffer+USTAR_gname_offset,gnameChar,USTAR_gname_size);
     
     if(isDirectory) {
-        memset(&block[USTAR_typeflag_offset],'5',USTAR_typeflag_size);
+        memset(buffer+USTAR_typeflag_offset,'5',USTAR_typeflag_size);
     }
     
     //Checksum
     int checksum = 0;
     for (int i = 0; i < TAR_BLOCK_SIZE; i++)
-		checksum += 255 & (unsigned int)block[i];
-	block[USTAR_checksum_offset + 6] = '\0';
-	format_octal(checksum, block + USTAR_checksum_offset, 6);
-    tarData = [NSMutableData dataWithBytes:block length:TAR_BLOCK_SIZE];
-    
-    //write data
-    if(!isDirectory) {
-        [tarData appendData:[NSData dataWithContentsOfFile:[basepath stringByAppendingPathComponent:path]]];
-    }
-    return tarData;
+		checksum += 255 & (unsigned int)buffer[i];
+	buffer[USTAR_checksum_offset + 6] = '\0';
+	format_octal(checksum, buffer + USTAR_checksum_offset, 6);
 }
 
-+(void) writeString:(NSString *) string toChar:(char *) charArray withLenght:(size_t) size
++ (void) writeString:(NSString *) string toChar:(char *) charArray withLenght:(int) size
 {
     NSData *stringData = [string dataUsingEncoding:NSASCIIStringEncoding];
     memset(charArray, '\0', size);
-    [stringData getBytes:charArray length:size-1];
+    [stringData getBytes:charArray length:[stringData length]];
 }
+
+
+#pragma mark - Formatting 
+//Thanks to libarchive
 
 /*
  * Format a number into a field, with some intelligence.
