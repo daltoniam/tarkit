@@ -125,11 +125,11 @@ static const char template_header[] = {
 };
 
 #pragma mark - Private Methods
-@interface TarLight
+@interface LightTar()
 @end
 
 #pragma mark - Implementation
-@implementation TarLight
+@implementation LightTar
 
 + (NSData *)createTarWithFilesAndDirectoriesAtURL:(NSURL *)url error:(NSError **)error
 {
@@ -190,13 +190,6 @@ static const char template_header[] = {
     NSString *groupName = [attributes objectForKey:NSFileGroupOwnerAccountName];
     unsigned long long fileSize = [[attributes objectForKey:NSFileSize] longLongValue];
     
-    char permissionChar[USTAR_mode_size];
-    write_char(permissions, permissionChar, sizeof(permissions));
-    char uidChar[USTAR_uid_size];
-    write_char(ownerId, uidChar, USTAR_uid_size);
-    char gidChar[USTAR_gid_size];
-    write_char(groupId, gidChar, USTAR_gid_size);
-    
     char nameChar[USTAR_name_size];
     [self writeString:path toChar:nameChar withLenght:USTAR_name_size];
     char unameChar[USTAR_uname_size];
@@ -241,9 +234,6 @@ static const char template_header[] = {
     
     if(isDirectory) {
         memset(&block[USTAR_typeflag_offset],'5',USTAR_typeflag_size);
-        char sizeChar[USTAR_size_size];
-        write_char(0, sizeChar, USTAR_size_size);
-        memcpy(&block[USTAR_size_offset],sizeChar,USTAR_size_size);
     }
     
     //Checksum
@@ -266,24 +256,6 @@ static const char template_header[] = {
     NSData *stringData = [string dataUsingEncoding:NSASCIIStringEncoding];
     memset(charArray, '\0', size);
     [stringData getBytes:charArray length:size-1];
-}
-
-void to_octal (uintmax_t value, char *where, size_t size)
-{
-    uintmax_t v = value;
-    size_t i = size;
-    
-    do
-    {
-        where[--i] = '0' + (v & ((1 << 3) - 1));
-        v >>= 3;
-    }
-    while (i);
-}
-
-static void write_char (uintmax_t value,char *where, size_t size) {
-    where[size - 1] = '\0';
-    to_octal (value, where, size - 1);
 }
 
 /*
