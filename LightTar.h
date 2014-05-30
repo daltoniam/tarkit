@@ -27,7 +27,7 @@
 
 #import <Foundation/Foundation.h>
 
-@interface LightTar
+@interface LightTar: NSObject
 
 + (NSData *)createTarWithFilesAndDirectoriesAtURL:(NSURL *)url error:(NSError **)error;
 + (NSData *)createTarWithFilesAndDirectoriesAtPath:(NSString *)path error:(NSError **)error;
