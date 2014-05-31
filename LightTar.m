@@ -246,6 +246,7 @@ static const char template_header[] = {
     memcpy(buffer+USTAR_gname_offset,gnameChar,USTAR_gname_size);
     
     if(isDirectory) {
+        format_number(0, buffer + USTAR_size_offset, USTAR_size_size, USTAR_size_max_size, 0);
         memset(buffer+USTAR_typeflag_offset,'5',USTAR_typeflag_size);
     }
     
