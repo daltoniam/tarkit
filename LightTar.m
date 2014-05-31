@@ -187,7 +187,7 @@ static const char template_header[] = {
     
     //write data
     if(!isDirectory) {
-        [tarData appendData:[NSData dataWithContentsOfFile:[basepath stringByAppendingPathComponent:path]]];
+        [self writeDataFromPath: [basepath stringByAppendingPathComponent:path] toData:tarData];
     }
     return tarData;
 }
@@ -255,6 +255,16 @@ static const char template_header[] = {
 		checksum += 255 & (unsigned int)buffer[i];
 	buffer[USTAR_checksum_offset + 6] = '\0';
 	format_octal(checksum, buffer + USTAR_checksum_offset, 6);
+}
+
++ (void) writeDataFromPath:(NSString *)path toData:(NSMutableData *)data {
+    NSData *content = [NSData dataWithContentsOfFile:path];
+    NSUInteger contentSize = [content length];
+    unsigned long padding =  (TAR_BLOCK_SIZE - (contentSize % TAR_BLOCK_SIZE)) % TAR_BLOCK_SIZE ;
+    char buffer[padding];
+    memset(&buffer, '\0', padding);
+    [data appendData:content];
+    [data appendBytes:buffer length:padding];
 }
 
 + (void) writeString:(NSString *) string toChar:(char *) charArray withLenght:(int) size
