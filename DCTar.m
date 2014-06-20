@@ -4,6 +4,9 @@
 //
 //  Created by Dalton Cherry on 5/21/14.
 //
+//  Also created by Patrice Brend'amour of 2014-05-30
+//
+//  Part of the code was inspired by libarchive
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #import "DCTar.h"
@@ -18,23 +21,145 @@
 #define TAR_SIZE_SIZE                   12
 #define TAR_MAX_BLOCK_LOAD_IN_MEMORY    100
 
+/*
+ * Define structure of POSIX 'ustar' tar header.
+ + Provided by libarchive.
+ */
+#define	USTAR_name_offset 0
+#define	USTAR_name_size 100
+#define	USTAR_mode_offset 100
+#define	USTAR_mode_size 6
+#define	USTAR_mode_max_size 8
+#define	USTAR_uid_offset 108
+#define	USTAR_uid_size 6
+#define	USTAR_uid_max_size 8
+#define	USTAR_gid_offset 116
+#define	USTAR_gid_size 6
+#define	USTAR_gid_max_size 8
+#define	USTAR_size_offset 124
+#define	USTAR_size_size 11
+#define	USTAR_size_max_size 12
+#define	USTAR_mtime_offset 136
+#define	USTAR_mtime_size 11
+#define	USTAR_mtime_max_size 11
+#define	USTAR_checksum_offset 148
+#define	USTAR_checksum_size 8
+#define	USTAR_typeflag_offset 156
+#define	USTAR_typeflag_size 1
+#define	USTAR_linkname_offset 157
+#define	USTAR_linkname_size 100
+#define	USTAR_magic_offset 257
+#define	USTAR_magic_size 6
+#define	USTAR_version_offset 263
+#define	USTAR_version_size 2
+#define	USTAR_uname_offset 265
+#define	USTAR_uname_size 32
+#define	USTAR_gname_offset 297
+#define	USTAR_gname_size 32
+#define	USTAR_rdevmajor_offset 329
+#define	USTAR_rdevmajor_size 6
+#define	USTAR_rdevmajor_max_size 8
+#define	USTAR_rdevminor_offset 337
+#define	USTAR_rdevminor_size 6
+#define	USTAR_rdevminor_max_size 8
+#define	USTAR_prefix_offset 345
+#define	USTAR_prefix_size 155
+#define	USTAR_padding_offset 500
+#define	USTAR_padding_size 12
+
+
+static const char template_header[] = {
+	/* name: 100 bytes */
+	0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
+	0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
+	0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
+	0,0,0,0,
+	/* Mode, space-null termination: 8 bytes */
+	'0','0','0','0','0','0', ' ','\0',
+	/* uid, space-null termination: 8 bytes */
+	'0','0','0','0','0','0', ' ','\0',
+	/* gid, space-null termination: 8 bytes */
+	'0','0','0','0','0','0', ' ','\0',
+	/* size, space termation: 12 bytes */
+	'0','0','0','0','0','0','0','0','0','0','0', ' ',
+	/* mtime, space termation: 12 bytes */
+	'0','0','0','0','0','0','0','0','0','0','0', ' ',
+	/* Initial checksum value: 8 spaces */
+	' ',' ',' ',' ',' ',' ',' ',' ',
+	/* Typeflag: 1 byte */
+	'0',			/* '0' = regular file */
+	/* Linkname: 100 bytes */
+	0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
+	0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
+	0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
+	0,0,0,0,
+	/* Magic: 6 bytes, Version: 2 bytes */
+	'u','s','t','a','r','\0', '0','0',
+	/* Uname: 32 bytes */
+	0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
+	/* Gname: 32 bytes */
+	0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
+	/* rdevmajor + space/null padding: 8 bytes */
+	'0','0','0','0','0','0', ' ','\0',
+	/* rdevminor + space/null padding: 8 bytes */
+	'0','0','0','0','0','0', ' ','\0',
+	/* Prefix: 155 bytes */
+	0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
+	0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
+	0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
+	0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
+	0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,
+	/* Padding: 12 bytes */
+	0,0,0,0,0,0,0,0, 0,0,0,0
+};
+
 @implementation DCTar
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 +(BOOL)compressFileAtPath:(NSString*)filePath toPath:(NSString*)path error:(NSError**)error
 {
-    //does both gzip and tar
-    //TODO: make a way to tar and gzipped a file.
-    //probably create two tar method and gzipped
+    //does decompression as needed (based on if the file ends .gz)
+    NSFileManager *manager = [NSFileManager defaultManager];
+    if([manager fileExistsAtPath:filePath]) {
+        
+        NSString *workPath = path;
+        BOOL doGzip = NO;
+        if([workPath hasSuffix:@".gz"]) {
+            NSRange range = [workPath rangeOfString:@".gz" options:NSBackwardsSearch];
+            NSString *tarPath = [workPath substringToIndex:range.location];
+            workPath = tarPath;
+            doGzip = YES;
+        }
+        BOOL status = YES;
+        if([workPath hasSuffix:@".tar"]) {
+            if(![self tarFileAtPath:filePath toPath:workPath error:error]) {
+                if(error)
+                    *error = [self errorWithDetail:@"unable to tar the file" code:-3];
+                return status;
+            }
+            
+        }
+        if(doGzip) {
+            NSFileHandle *fileHandle = [NSFileHandle fileHandleForReadingAtPath:workPath];
+            status = [self fileDeflate:fileHandle isGzip:YES toPath:path];
+            [fileHandle closeFile];
+            if(status) {
+                [manager removeItemAtPath:workPath error:nil]; //remove our temp tar file
+            }
+        }
+        return status;
+    }
+    if(error)
+        *error = [self errorWithDetail:@"file not found" code:-2];
     return NO;
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-+(BOOL)compressData:(NSData*)data toPath:(NSString*)path error:(NSError**)error
-{
-    //does both gzip and tar
-    //TODO: make a way to tar and gzipped a data blob.
-    return NO;
-}
+//+(BOOL)compressData:(NSData*)data toPath:(NSString*)path error:(NSError**)error
+//{
+//    //does both gzip and tar
+//    //TODO: make a way to tar and gzipped a data blob.
+//    return NO;
+//}
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 +(BOOL)decompressFileAtPath:(NSString*)filePath toPath:(NSString*)path error:(NSError**)error
 {
@@ -76,8 +201,28 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 +(BOOL)tarFileAtPath:(NSString*)tarFilePath toPath:(NSString*)path error:(NSError**)error
 {
-    //tar the file
-    //TODO: make a way to tar a file.
+    NSFileManager *fileManager = [NSFileManager defaultManager];
+    
+    if([fileManager fileExistsAtPath:tarFilePath]) {
+        
+        [fileManager removeItemAtPath:path error:nil];
+        [@"" writeToFile:path atomically:NO encoding:NSUTF8StringEncoding error:nil];
+        NSFileHandle *fileHandle = [NSFileHandle fileHandleForWritingAtPath:path];
+        for(NSString *file in [fileManager enumeratorAtPath:tarFilePath]) {
+            BOOL isDir = NO;
+            [fileManager fileExistsAtPath:[path stringByAppendingPathComponent:file] isDirectory:&isDir];
+            NSData *tarContent = [self binaryEncodeDataForPath:file inDirectory:path isDirectory:isDir];
+            [fileHandle writeData:tarContent];
+        }
+        //Append two empty blocks to indicate end
+        char block[TAR_BLOCK_SIZE*2];
+        memset(&block, '\0', TAR_BLOCK_SIZE*2);
+        [fileHandle writeData:[NSData dataWithBytes:block length:TAR_BLOCK_SIZE*2]];
+        [fileHandle closeFile];
+        return YES;
+    }
+    if(error)
+        *error = [self errorWithDetail:@"tar file not found" code:-2];
     return NO;
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -95,11 +240,11 @@
     return NO;
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-+(BOOL)tarData:(NSData*)tarData toPath:(NSString*)path error:(NSError**)error
-{
-    //TODO: make a way to tar a data blob.
-    return NO;
-}
+//+(BOOL)tarData:(NSData*)tarData toPath:(NSString*)path error:(NSError**)error
+//{
+//    //TODO: make a way to tar a data blob.
+//    return NO;
+//}
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 +(BOOL)untarData:(NSData*)tarData toPath:(NSString*)path error:(NSError**)error
 {
@@ -144,6 +289,9 @@
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 //private methods
+////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////
+//untar methods
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 +(BOOL)untarObject:(id)tarObject size:(unsigned long long)size toPath:(NSString*)path error:(NSError**)error
 {
@@ -270,6 +418,186 @@
     return nil;
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+//tar stuff
+////////////////////////////////////////////////////////////////////////////////////////////////////
++ (NSData*)binaryEncodeDataForPath:(NSString *) path inDirectory:(NSString *)basepath  isDirectory:(BOOL) isDirectory{
+    
+    NSMutableData *tarData;
+    char block[TAR_BLOCK_SIZE];
+    
+    if(isDirectory) {
+        path = [path stringByAppendingString:@"/"];
+    }
+    //write header
+    [self writeHeader:block forPath:path withBasePath:basepath isDirectory:isDirectory];
+    tarData = [NSMutableData dataWithBytes:block length:TAR_BLOCK_SIZE];
+    
+    //write data
+    if(!isDirectory) {
+        [self writeDataFromPath: [basepath stringByAppendingPathComponent:path] toData:tarData];
+    }
+    return tarData;
+}
+////////////////////////////////////////////////////////////////////////////////////////////////////
++(void)writeHeader:(char*)buffer forPath:(NSString*)path withBasePath:(NSString*)basePath isDirectory:(BOOL)isDirectory {
+    
+    memcpy(buffer,&template_header, TAR_BLOCK_SIZE);
+    NSError *error = nil;
+    NSDictionary *attributes = [[NSFileManager defaultManager] attributesOfItemAtPath:[basePath stringByAppendingPathComponent:path] error:&error];
+    int permissions = [[attributes objectForKey:NSFilePosixPermissions] shortValue];
+    NSDate * modificationDate = [attributes objectForKey:NSFileModificationDate];
+    long ownerId = [[attributes objectForKey:NSFileOwnerAccountID] longValue];
+    long groupId = [[attributes objectForKey:NSFileGroupOwnerAccountID] longValue];
+    NSString *ownerName = [attributes objectForKey:NSFileOwnerAccountName];
+    NSString *groupName = [attributes objectForKey:NSFileGroupOwnerAccountName];
+    unsigned long long fileSize = [[attributes objectForKey:NSFileSize] longLongValue];
+    
+    char nameChar[USTAR_name_size];
+    [self writeString:path toChar:nameChar withLength:USTAR_name_size];
+    char unameChar[USTAR_uname_size];
+    [self writeString:ownerName toChar:unameChar withLength:USTAR_uname_size];
+    char gnameChar[USTAR_gname_size];
+    [self writeString:groupName toChar:gnameChar withLength:USTAR_gname_size];
+    
+    
+    format_number(permissions & 07777, buffer+USTAR_mode_offset, USTAR_mode_size, USTAR_mode_max_size, 0);
+    format_number(ownerId,
+                  buffer + USTAR_uid_offset, USTAR_uid_size, USTAR_uid_max_size, 0);
+	format_number(groupId,
+                  buffer + USTAR_gid_offset, USTAR_gid_size, USTAR_gid_max_size, 0);
+    
+	format_number(fileSize, buffer + USTAR_size_offset, USTAR_size_size, USTAR_size_max_size, 0);
+    
+	format_number([modificationDate timeIntervalSince1970],
+                  buffer + USTAR_mtime_offset, USTAR_mtime_size, USTAR_mtime_max_size, 0);
+    
+    unsigned long nameLength = strlen(nameChar);
+    if (nameLength <= USTAR_name_size)
+		memcpy(buffer + USTAR_name_offset, nameChar, nameLength);
+	else {
+		/* Store in two pieces, splitting at a '/'. */
+		const char *p = strchr(nameChar + nameLength - USTAR_name_size - 1, '/');
+		/*
+		 * Look for the next '/' if we chose the first character
+		 * as the separator.  (ustar format doesn't permit
+		 * an empty prefix.)
+		 */
+		if (p == nameChar)
+			p = strchr(p + 1, '/');
+        memcpy(buffer + USTAR_prefix_offset, nameChar, p - nameChar);
+		memcpy(buffer + USTAR_name_offset, p + 1,
+               nameChar + nameLength - p - 1);
+	}
+    
+    memcpy(buffer+USTAR_uname_offset,unameChar,USTAR_uname_size);
+    memcpy(buffer+USTAR_gname_offset,gnameChar,USTAR_gname_size);
+    
+    if(isDirectory) {
+        format_number(0, buffer + USTAR_size_offset, USTAR_size_size, USTAR_size_max_size, 0);
+        memset(buffer+USTAR_typeflag_offset,'5',USTAR_typeflag_size);
+    }
+    
+    //Checksum
+    int checksum = 0;
+    for (int i = 0; i < TAR_BLOCK_SIZE; i++)
+		checksum += 255 & (unsigned int)buffer[i];
+	buffer[USTAR_checksum_offset + 6] = '\0';
+	format_octal(checksum, buffer + USTAR_checksum_offset, 6);
+}
+////////////////////////////////////////////////////////////////////////////////////////////////////
++(void)writeDataFromPath:(NSString *)path toData:(NSMutableData*)data {
+    NSData *content = [NSData dataWithContentsOfFile:path];
+    NSUInteger contentSize = [content length];
+    unsigned long padding =  (TAR_BLOCK_SIZE - (contentSize % TAR_BLOCK_SIZE)) % TAR_BLOCK_SIZE ;
+    char buffer[padding];
+    memset(&buffer, '\0', padding);
+    [data appendData:content];
+    [data appendBytes:buffer length:padding];
+}
+////////////////////////////////////////////////////////////////////////////////////////////////////
++ (void)writeString:(NSString*)string toChar:(char*)charArray withLength:(NSInteger)size
+{
+    NSData *stringData = [string dataUsingEncoding:NSASCIIStringEncoding];
+    memset(charArray, '\0', size);
+    [stringData getBytes:charArray length:[stringData length]];
+}
+////////////////////////////////////////////////////////////////////////////////////////////////////
+#pragma mark - Formatting
+//Thanks to libarchive
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+//Format a number into a field, with some intelligence.
+static int format_number(int64_t v, char *p, int s, int maxsize, int strict)
+{
+	int64_t limit;
+    
+	limit = ((int64_t)1 << (s*3));
+    
+	/* "Strict" only permits octal values with proper termination. */
+	if (strict)
+		return (format_octal(v, p, s));
+    
+	/*
+	 * In non-strict mode, we allow the number to overwrite one or
+	 * more bytes of the field termination.  Even old tar
+	 * implementations should be able to handle this with no
+	 * problem.
+	 */
+	if (v >= 0) {
+		while (s <= maxsize) {
+			if (v < limit)
+				return (format_octal(v, p, s));
+			s++;
+			limit <<= 3;
+		}
+	}
+    
+	/* Base-256 can handle any number, positive or negative. */
+	return (format_256(v, p, maxsize));
+}
+////////////////////////////////////////////////////////////////////////////////////////////////////
+//Format a number into the specified field using base-256.
+static int format_256(int64_t v, char *p, int s)
+{
+	p += s;
+	while (s-- > 0) {
+		*--p = (char)(v & 0xff);
+		v >>= 8;
+	}
+	*p |= 0x80; /* Set the base-256 marker bit. */
+	return (0);
+}
+////////////////////////////////////////////////////////////////////////////////////////////////////
+//Format a number into the specified field.
+static int format_octal(int64_t v, char *p, int s)
+{
+	int len;
+    
+	len = s;
+    
+	/* Octal values can't be negative, so use 0. */
+	if (v < 0) {
+		while (len-- > 0)
+			*p++ = '0';
+		return (-1);
+	}
+    
+	p += s;		/* Start at the end and work backwards. */
+	while (s-- > 0) {
+		*--p = (char)('0' + (v & 7));
+		v >>= 3;
+	}
+    
+	if (v == 0)
+		return (0);
+    
+	/* If it overflowed, fill field with max value. */
+	while (len-- > 0)
+		*p++ = '7';
+    
+	return (-1);
+}
+////////////////////////////////////////////////////////////////////////////////////////////////////
 //compression stuff
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 +(NSData*)deflate:(NSData*)data isGzip:(BOOL)isgzip
@@ -311,6 +639,57 @@
     
     [compressed setLength:strm.total_out];
     return [NSData dataWithData:compressed];
+}
+////////////////////////////////////////////////////////////////////////////////////////////////////
++(BOOL)fileDeflate:(NSFileHandle*)fileHandle isGzip:(BOOL)isgzip toPath:(NSString*)toPath
+{
+    z_stream strm;
+    strm.zalloc = Z_NULL;
+    strm.zfree = Z_NULL;
+    strm.opaque = Z_NULL;
+    strm.total_out = 0;
+    strm.avail_in = 0;
+    strm.next_in = Z_NULL;
+    
+    if(isgzip){
+        if (deflateInit2(&strm, Z_DEFAULT_COMPRESSION, Z_DEFLATED, (15+16), 8, Z_DEFAULT_STRATEGY) != Z_OK)
+            return NO;
+    } else {
+        if (deflateInit(&strm, Z_DEFAULT_COMPRESSION) != Z_OK)
+            return NO;
+    }
+    
+    [@"" writeToFile:toPath atomically:NO encoding:NSUTF8StringEncoding error:nil];
+    NSFileHandle *writeHandle = [NSFileHandle fileHandleForWritingAtPath:toPath];
+    BOOL done = NO;
+    uInt chunkSize = 16384;
+    do {
+        NSData *chunk = [fileHandle readDataOfLength:chunkSize];
+        strm.avail_in = (uInt)[chunk length];
+        strm.next_in = (Bytef*)[chunk bytes];
+        int flush = Z_NO_FLUSH;
+        if(chunk.length == 0)
+            flush = Z_FINISH;
+        do {
+            NSMutableData *compressed = [NSMutableData dataWithLength:chunkSize];
+            strm.avail_out = chunkSize;
+            strm.next_out = (Bytef*)[compressed mutableBytes];
+            NSInteger status = deflate (&strm, flush);
+            if (status == Z_STREAM_END)
+                done = YES;
+            else if (status != Z_OK) {
+                done = YES;
+                return NO;
+            }
+            NSInteger have = chunkSize - strm.avail_out;
+            [compressed setLength:have];
+            [writeHandle writeData:compressed];
+            
+        } while (strm.avail_out == 0);
+        
+    } while (!done);
+    deflateEnd(&strm);
+    return YES;
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 +(NSData*)inflate:(NSData*)data isGzip:(BOOL)isgzip

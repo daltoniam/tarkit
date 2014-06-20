@@ -1,6 +1,6 @@
 Pod::Spec.new do |s|
   s.name         = "tarkit"
-  s.version      = "0.0.1"
+  s.version      = "0.1.0"
   s.summary      = "untar and tar files on iOS and OS X. Also supports gzip tars."
   s.homepage     = "https://github.com/daltoniam/tarkit"
   s.license      = 'Apache License, Version 2.0'

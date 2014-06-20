@@ -32,7 +32,7 @@
  @param: error is used to report back if an error happened.
  @return if the compression was successful or not.
  */
-+(BOOL)compressData:(NSData*)data toPath:(NSString*)path error:(NSError**)error;
+//+(BOOL)compressData:(NSData*)data toPath:(NSString*)path error:(NSError**)error;
 
 /**
  decompress a tar or gzipped tar (.tar or tar.giz) file.
@@ -77,7 +77,7 @@
  @param: error is used to report back if an error happened.
  @return if the compression was successful or not.
  */
-+(BOOL)tarData:(NSData*)tarData toPath:(NSString*)path error:(NSError**)error;
+//+(BOOL)tarData:(NSData*)tarData toPath:(NSString*)path error:(NSError**)error;
 
 /**
  decompress a tar file (not gzipped).
