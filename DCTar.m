@@ -210,8 +210,8 @@ static const char template_header[] = {
         NSFileHandle *fileHandle = [NSFileHandle fileHandleForWritingAtPath:path];
         for(NSString *file in [fileManager enumeratorAtPath:tarFilePath]) {
             BOOL isDir = NO;
-            [fileManager fileExistsAtPath:[path stringByAppendingPathComponent:file] isDirectory:&isDir];
-            NSData *tarContent = [self binaryEncodeDataForPath:file inDirectory:path isDirectory:isDir];
+            [fileManager fileExistsAtPath:[tarFilePath stringByAppendingPathComponent:file] isDirectory:&isDir];
+            NSData *tarContent = [self binaryEncodeDataForPath:file inDirectory:tarFilePath isDirectory:isDir];
             [fileHandle writeData:tarContent];
         }
         //Append two empty blocks to indicate end
