@@ -632,6 +632,8 @@ static int format_octal(int64_t v, char *p, int s)
         strm.avail_out = (uInt)([compressed length] - strm.total_out);
         
         deflate(&strm, Z_FINISH);
+        if(status == Z_BUF_ERROR)
+            continue;
         
     } while (strm.avail_out == 0);
     
@@ -677,6 +679,8 @@ static int format_octal(int64_t v, char *p, int s)
             NSInteger status = deflate (&strm, flush);
             if (status == Z_STREAM_END)
                 done = YES;
+            else if(status == Z_BUF_ERROR)
+                continue;
             else if (status != Z_OK) {
                 done = YES;
                 return NO;
@@ -732,6 +736,8 @@ static int format_octal(int64_t v, char *p, int s)
         status = inflate (&strm, Z_SYNC_FLUSH);
         if (status == Z_STREAM_END)
             done = YES;
+        else if(status == Z_BUF_ERROR)
+            continue;
         else if (status != Z_OK)
             break;
     }
@@ -780,6 +786,8 @@ static int format_octal(int64_t v, char *p, int s)
             NSInteger status = inflate (&strm, Z_SYNC_FLUSH);
             if (status == Z_STREAM_END)
                 done = YES;
+            else if(status == Z_BUF_ERROR)
+                continue;
             else if (status != Z_OK) {
                 done = YES;
                 return NO;
