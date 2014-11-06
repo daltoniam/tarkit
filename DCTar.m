@@ -632,8 +632,6 @@ static int format_octal(int64_t v, char *p, int s)
         strm.avail_out = (uInt)([compressed length] - strm.total_out);
         
         deflate(&strm, Z_FINISH);
-        if(status == Z_BUF_ERROR)
-            continue;
         
     } while (strm.avail_out == 0);
     
