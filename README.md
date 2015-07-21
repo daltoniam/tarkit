@@ -37,6 +37,10 @@ I got some of the tar code from here:
 
 The recommended approach for installing tarkit is via the CocoaPods package manager (like most libraries).
 
+```
+pod 'tarkit', '~> 0.1.3'
+```
+
 ## Requirements ##
 
 tarkit requires at least iOS 5/OSX 10.7 or above.
